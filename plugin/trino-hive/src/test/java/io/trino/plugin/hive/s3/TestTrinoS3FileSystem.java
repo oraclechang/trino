@@ -13,6 +13,7 @@
  */
 package io.trino.plugin.hive.s3;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceClient;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.Protocol;
@@ -519,7 +520,7 @@ public class TestTrinoS3FileSystem
     public void testUnrecoverableS3ExceptionMessage()
             throws Exception
     {
-        throw new UnrecoverableS3OperationException(new Path("/tmp/test/path"), new IOException("test io exception"));
+        throw new UnrecoverableS3OperationException(new Path("/tmp/test/path"), new AmazonServiceException("test io exception"));
     }
 
     @Test

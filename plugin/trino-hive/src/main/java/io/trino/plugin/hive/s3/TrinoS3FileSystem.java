@@ -765,10 +765,18 @@ public class TrinoS3FileSystem
     public static class UnrecoverableS3OperationException
             extends IOException
     {
-        public UnrecoverableS3OperationException(Path path, Throwable cause)
+        private final int statusCode;
+
+        public UnrecoverableS3OperationException(Path path, AmazonServiceException cause)
         {
             // append the path info to the message
             super(format("%s (Path: %s)", cause, path), cause);
+            statusCode = cause.getStatusCode();
+        }
+
+        public int getStatusCode()
+        {
+            return statusCode;
         }
     }
 
@@ -806,7 +814,7 @@ public class TrinoS3FileSystem
                                 switch (((AmazonServiceException) e).getStatusCode()) {
                                     case HTTP_FORBIDDEN:
                                     case HTTP_BAD_REQUEST:
-                                        throw new UnrecoverableS3OperationException(path, e);
+                                        throw new UnrecoverableS3OperationException(path, (AmazonServiceException) e);
                                 }
                             }
                             if (e instanceof AmazonS3Exception &&
@@ -1178,7 +1186,7 @@ public class TrinoS3FileSystem
                                     switch (((AmazonServiceException) e).getStatusCode()) {
                                         case HTTP_FORBIDDEN:
                                         case HTTP_BAD_REQUEST:
-                                            throw new UnrecoverableS3OperationException(path, e);
+                                            throw new UnrecoverableS3OperationException(path, (AmazonServiceException) e);
                                     }
                                 }
                                 if (e instanceof AmazonS3Exception) {
@@ -1186,7 +1194,7 @@ public class TrinoS3FileSystem
                                         case HTTP_RANGE_NOT_SATISFIABLE:
                                             throw new EOFException(CANNOT_SEEK_PAST_EOF);
                                         case HTTP_NOT_FOUND:
-                                            throw new UnrecoverableS3OperationException(path, e);
+                                            throw new UnrecoverableS3OperationException(path, (AmazonServiceException) e);
                                     }
                                 }
                                 throw e;
@@ -1352,7 +1360,7 @@ public class TrinoS3FileSystem
                                     switch (((AmazonServiceException) e).getStatusCode()) {
                                         case HTTP_FORBIDDEN:
                                         case HTTP_BAD_REQUEST:
-                                            throw new UnrecoverableS3OperationException(path, e);
+                                            throw new UnrecoverableS3OperationException(path, (AmazonServiceException) e);
                                     }
                                 }
                                 if (e instanceof AmazonS3Exception) {
@@ -1361,7 +1369,7 @@ public class TrinoS3FileSystem
                                             // ignore request for start past end of object
                                             return new ByteArrayInputStream(new byte[0]);
                                         case HTTP_NOT_FOUND:
-                                            throw new UnrecoverableS3OperationException(path, e);
+                                            throw new UnrecoverableS3OperationException(path, (AmazonServiceException) e);
                                     }
                                 }
                                 throw e;
