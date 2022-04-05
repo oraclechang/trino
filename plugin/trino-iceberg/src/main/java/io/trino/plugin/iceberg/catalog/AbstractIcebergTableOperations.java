@@ -16,6 +16,8 @@ package io.trino.plugin.iceberg.catalog;
 import io.airlift.log.Logger;
 import io.trino.plugin.hive.metastore.Column;
 import io.trino.plugin.hive.metastore.StorageFormat;
+import io.trino.plugin.hive.s3.TrinoS3FileSystem.UnrecoverableS3OperationException;
+import io.trino.spi.TrinoException;
 import io.trino.spi.connector.ConnectorSession;
 import io.trino.spi.connector.SchemaTableName;
 import org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe;
@@ -40,11 +42,14 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Throwables.getCausalChain;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.trino.plugin.hive.HiveType.toHiveType;
+import static io.trino.plugin.iceberg.IcebergErrorCode.ICEBERG_METADATA_NOT_FOUND;
 import static io.trino.plugin.iceberg.IcebergUtil.getLocationProvider;
 import static java.lang.Integer.parseInt;
 import static java.lang.String.format;
+import static java.net.HttpURLConnection.HTTP_NOT_FOUND;
 import static java.util.Objects.requireNonNull;
 import static java.util.UUID.randomUUID;
 import static org.apache.iceberg.TableMetadataParser.getFileExtension;
@@ -213,9 +218,8 @@ public abstract class AbstractIcebergTableOperations
         Tasks.foreach(newLocation)
                 .retry(20)
                 .exponentialBackoff(100, 5000, 600000, 4.0)
-                .stopRetryOn(org.apache.iceberg.exceptions.NotFoundException.class) // qualified name, as this is NOT the io.trino.spi.connector.NotFoundException
-                .run(metadataLocation -> newMetadata.set(
-                        TableMetadataParser.read(fileIo, io().newInputFile(metadataLocation))));
+                .stopRetryOn(TrinoException.class)
+                .run(metadataLocation -> newMetadata.set(readTableMetadata(metadataLocation)));
 
         String newUUID = newMetadata.get().uuid();
         if (currentMetadata != null) {
@@ -227,6 +231,28 @@ public abstract class AbstractIcebergTableOperations
         currentMetadataLocation = newLocation;
         version = parseVersion(newLocation);
         shouldRefresh = false;
+    }
+
+    private TableMetadata readTableMetadata(String metadataLocation)
+    {
+        try {
+            return TableMetadataParser.read(fileIo, io().newInputFile(metadataLocation));
+        }
+        catch (Exception e) {
+            if (getCausalChain(e).stream().anyMatch(AbstractIcebergTableOperations::isNotFoundError)) {
+                throw new TrinoException(ICEBERG_METADATA_NOT_FOUND, e);
+            }
+            throw e;
+        }
+    }
+
+    private static boolean isNotFoundError(Throwable throwable)
+    {
+        if (throwable instanceof org.apache.iceberg.exceptions.NotFoundException) { // qualified name, as this is NOT the io.trino.spi.connector.NotFoundException
+            return true;
+        }
+        return throwable instanceof UnrecoverableS3OperationException &&
+                ((UnrecoverableS3OperationException) throwable).getStatusCode() == HTTP_NOT_FOUND;
     }
 
     protected static String newTableMetadataFilePath(TableMetadata meta, int newVersion)

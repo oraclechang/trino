@@ -13,15 +13,24 @@
  */
 package io.trino.plugin.iceberg;
 
+import io.trino.plugin.hive.HdfsEnvironment;
 import io.trino.testing.BaseConnectorSmokeTest;
 import io.trino.testing.TestingConnectorBehavior;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.LocatedFileStatus;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.fs.RemoteIterator;
 import org.apache.iceberg.FileFormat;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
+
+import static io.trino.plugin.hive.HiveTestUtils.HDFS_ENVIRONMENT;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.testng.Assert.assertNotNull;
 
 public abstract class BaseIcebergConnectorSmokeTest
         extends BaseConnectorSmokeTest
@@ -78,5 +87,55 @@ public abstract class BaseIcebergConnectorSmokeTest
                         "   format = '" + format.name() + "',\n" +
                         format("   location = '.*/" + schemaName + "/region'\n") +
                         "\\)");
+    }
+
+    @Test
+    public void testListInformationSchemaMetadataNotFound()
+            throws Exception
+    {
+        assertUpdate("CREATE TABLE test_metadata_not_found (col integer)");
+
+        HdfsEnvironment.HdfsContext context = new HdfsEnvironment.HdfsContext(getSession().toConnectorSession());
+        org.apache.hadoop.fs.Path metadataDir = new org.apache.hadoop.fs.Path(getMetadataDirectory("test_metadata_not_found"));
+        FileSystem fileSystem = HDFS_ENVIRONMENT.getFileSystem(context, metadataDir);
+        org.apache.hadoop.fs.Path metadataFile = getMetadataJsonFile(fileSystem, metadataDir);
+        org.apache.hadoop.fs.Path renamedMetadataFile = new org.apache.hadoop.fs.Path(metadataFile + ".renamed");
+
+        fileSystem.rename(metadataFile, renamedMetadataFile);
+
+        assertQueryFails("SELECT * FROM test_metadata_not_found", "Failed to (read file|open input stream for file): .*");
+        assertQuerySucceeds("" +
+                        "SELECT table_name FROM information_schema.tables " +
+                        "WHERE table_catalog = 'iceberg' AND table_schema = 'tpch' AND table_name = 'test_metadata_not_found'");
+
+        // Rename to the original path so that we can clean up in Glue tests
+        fileSystem.rename(renamedMetadataFile, metadataFile);
+    }
+
+    private org.apache.hadoop.fs.Path getMetadataJsonFile(FileSystem fileSystem, org.apache.hadoop.fs.Path metadataDir)
+            throws IOException
+    {
+        RemoteIterator<LocatedFileStatus> files = fileSystem.listFiles(metadataDir, false);
+        Path metadataFile = null;
+        while (files.hasNext()) {
+            LocatedFileStatus file = files.next();
+            if (file.getPath().toString().endsWith(".metadata.json")) {
+                metadataFile = file.getPath();
+                break;
+            }
+        }
+        assertNotNull(metadataFile);
+        return new org.apache.hadoop.fs.Path(metadataFile.toString());
+    }
+
+    protected String getMetadataDirectory(String tableName)
+    {
+        return getDistributedQueryRunner().getCoordinator().getBaseDataDir()
+                .resolve("iceberg_data")
+                .resolve(getSession().getSchema().orElseThrow())
+                .resolve(tableName)
+                .resolve("metadata")
+                .toFile()
+                .getPath();
     }
 }
