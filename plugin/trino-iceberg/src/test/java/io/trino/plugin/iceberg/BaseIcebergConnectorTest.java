@@ -2728,13 +2728,13 @@ public abstract class BaseIcebergConnectorTest
         assertThat(probeStats.getInputPositions()).isLessThan(fullTableScan);
     }
 
-    @Test(dataProvider = "repartitioningDataProvider")
+    @Test(dataProvider = "repartitioningDataProvider", enabled = false)
     public void testRepartitionDataOnCtas(Session session, String partitioning, int expectedFiles)
     {
         testRepartitionData(session, "tpch.tiny.orders", true, partitioning, expectedFiles);
     }
 
-    @Test(dataProvider = "repartitioningDataProvider")
+    @Test(dataProvider = "repartitioningDataProvider", enabled = false)
     public void testRepartitionDataOnInsert(Session session, String partitioning, int expectedFiles)
     {
         testRepartitionData(session, "tpch.tiny.orders", false, partitioning, expectedFiles);
