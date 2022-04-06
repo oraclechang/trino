@@ -376,6 +376,7 @@
                                 <exclude>**/TestTrinoGlueCatalogTest.java</exclude>
                                 <exclude>**/TestSharedGlueMetastore.java</exclude>
                                 <exclude>**/TestIcebergGlueCatalogAccessOperations.java</exclude>
+                                <exclude>**/TestGlueInstanceCleaner.java</exclude>
                             </excludes>
                         </configuration>
                     </plugin>
@@ -411,10 +412,7 @@
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <includes>
-                                <include>**/TestIcebergGlueCatalogConnectorSmokeTest.java</include>
-                                <include>**/TestTrinoGlueCatalogTest.java</include>
-                                <include>**/TestSharedGlueMetastore.java</include>
-                                <include>**/TestIcebergGlueCatalogAccessOperations.java</include>
+                                <include>**/TestGlueInstanceCleaner.java</include>
                             </includes>
                         </configuration>
                     </plugin>
