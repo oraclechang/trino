@@ -15,6 +15,7 @@ package io.trino.plugin.iceberg.catalog.glue;
 
 import com.amazonaws.services.glue.AWSGlue;
 import com.amazonaws.services.glue.AWSGlueClientBuilder;
+import com.amazonaws.services.glue.model.DeleteDatabaseRequest;
 import com.amazonaws.services.glue.model.GetDatabasesRequest;
 import com.amazonaws.services.glue.model.GetDatabasesResult;
 import io.airlift.log.Logger;
@@ -51,7 +52,7 @@ public class TestGlueInstanceCleaner
         log.info("Remove databases in Glue: %s", databaseNames);
         for (String databaseName : databaseNames) {
             log.info("Removing database in Glue: '%s'", databaseName);
-            // glueClient.deleteDatabase(new DeleteDatabaseRequest().withName(databaseName));
+            glueClient.deleteDatabase(new DeleteDatabaseRequest().withName(databaseName));
         }
     }
 }
