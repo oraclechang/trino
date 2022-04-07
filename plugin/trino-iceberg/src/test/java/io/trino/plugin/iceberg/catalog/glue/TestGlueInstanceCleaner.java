@@ -45,7 +45,7 @@ public class TestGlueInstanceCleaner
                 .map(GetDatabasesResult::getDatabaseList)
                 .flatMap(List::stream)
                 .map(com.amazonaws.services.glue.model.Database::getName)
-                .filter(name -> name.startsWith("iceberg_connector_test_"))
+                .filter(name -> name.startsWith("iceberg_connector_test_") || name.startsWith("iceberg_smoke_test_1evsrf5vro"))
                 .collect(toImmutableList());
 
 
